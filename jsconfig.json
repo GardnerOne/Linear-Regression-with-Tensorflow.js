@@ -1,0 +1,8 @@
+{
+  "include": [
+    "*.js",
+    "libraries/*.js",
+    "/Users/jamie/.vscode/extensions/samplavigne.p5-vscode-1.2.8/p5types/global.d.ts",
+    "https://cdn.jsdelivr.net/npm/@tensorflow/tfjs/dist/tf.min.js"
+  ]
+}
