@@ -2,14 +2,21 @@ let seed;
 let isNewGame = true;
 
 let m, b;
-let points = [];
+let points;
 
-const learningRate = 0.2;
-const optimizer = tf.train.sgd(learningRate);
+let learningRate;
+let optimizer;
+let mse;
 
 function setup() {
     init();
     createCanvas(windowWidth, windowHeight);
+
+    points = [];
+
+    learningRate = 0.1;
+    mse = Infinity;
+    optimizer = tf.train.sgd(learningRate);
 
     // Initialise the gradient and y-intersection of the line randomly
     // (comparable to weights and  biases of a Neural Network)
@@ -21,29 +28,40 @@ function draw() {
     background(dark);
 
     fill(light);
-    for(let i = 0; i < points.length; i++) {
+    for (let i = 0; i < points.length; i++) {
         const [x, y] = denormalisePosition(points[i][0], points[i][1]);
         ellipse(x, y, 15);
     }
 
     let xs = [];
     let ys = [];
-    for(let i = 0; i < points.length; i++) {
+    for (let i = 0; i < points.length; i++) {
         xs.push(points[i][0]);
         ys.push(points[i][1]);
     }
 
+    showBestFit();
+
+    // Make sure we have sufficient data points before training
     if (xs.length > 1) {
-        train(xs, ys);
+        // Auto-dispose generated tensors
+        tf.tidy(() => {
+            train(xs, ys);
+            let ys_pred = predict(xs);
+            mse = loss(ys_pred, ys).dataSync();
+        });
 
-        let ys_pred = predict(xs);
-
-        let mse = loss(ys_pred, ys);
-        mse.print();
+        learningRate -= learningRate / 10000;
     }
+
+    // Debug info
+    text(`Learning rate: ${learningRate}`, 20, 20);
+    text(`Loss: ${mse}`, 20, 40);
+    text(`Tensors: ${tf.memory().numTensors}`, 20, 60);
 }
 
 function predict(xs) {
+
     const tfxs = tf.tensor1d(xs);
     const tfys_pred = tfxs.mul(m).add(b);
 
@@ -58,6 +76,23 @@ function loss(predictions, labels) {
 function train(xs, ys) {
     const tfys = tf.tensor1d(ys);
     optimizer.minimize(() => loss(predict(xs), tfys));
+}
+
+function showBestFit() {
+    // Show the line of best fit across the graph, 0 to width (or 0 to 1 normalised)
+    const x_bounds = [0, 1];
+    const tf_y_bounds_pred = tf.tidy(() => predict(x_bounds));
+    const y_bounds_pred = tf_y_bounds_pred.dataSync();
+
+    const [x0, y0] = denormalisePosition(x_bounds[0], y_bounds_pred[0]);
+    const [x1, y1] = denormalisePosition(x_bounds[1], y_bounds_pred[1]);
+
+    tf_y_bounds_pred.dispose();
+
+    stroke(primary);
+    strokeWeight(2);
+    line(x0, y0, x1, y1);
+    noStroke();
 }
 
 function normalisePosition(x, y) {
@@ -154,4 +189,9 @@ function reset(hard = false) {
     setup();
     redraw();
     hard ? print('New game') : print('Reset world');
+
+    // Clear any tensors from memory
+    tf.dispose();
+    // Clear any tensor variables from memory
+    tf.disposeVariables();
 }
